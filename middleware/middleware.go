@@ -65,7 +65,11 @@ func CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewDecoder(r.Body).Decode(&task)
 
-	insertOneTask(task)
+	insertOneResult := insertOneTask(task)
+
+	if oid, ok := insertOneResult.InsertedID.(primitive.ObjectID); ok {
+		task.ID = oid
+	}
 
 	json.NewEncoder(w).Encode(task)
 }
@@ -137,7 +141,7 @@ func getAllTask() []primitive.M {
 		if e != nil {
 			log.Fatal(e)
 		}
-		// fmt.Println("cur..>", cur, "result", reflect.TypeOf(result), reflect.TypeOf(result["_id"]))
+
 		results = append(results, result)
 
 	}
@@ -151,7 +155,7 @@ func getAllTask() []primitive.M {
 	return results
 }
 
-func insertOneTask(task models.ToDoList) {
+func insertOneTask(task models.ToDoList) *mongo.InsertOneResult {
 	insertResult, err := collection.InsertOne(context.Background(), task)
 
 	if err != nil {
@@ -159,6 +163,8 @@ func insertOneTask(task models.ToDoList) {
 	}
 
 	fmt.Println("New task added", insertResult.InsertedID)
+
+	return insertResult
 }
 
 // task complete method, update task's status to true
