@@ -16,7 +16,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const connectionString = "mongodb://0.0.0.0:27017/admin"
+const connectionString = "mongodb+srv://todoUser:todopass@zero-d4efp.gcp.mongodb.net/test?retryWrites=true&w=majority"
+
+//const connectionString = "mongodb://0.0.0.0:27017/admin"
 
 const dbName = "TodoDB"
 
@@ -50,6 +52,7 @@ func init() {
 func GetAllTask(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(headers.ContentType, "application/x-www-form-urlencoded")
 	w.Header().Set(headers.AccessControlAllowOrigin, "*")
+
 	payload := getAllTask()
 	json.NewEncoder(w).Encode(payload)
 }
@@ -81,11 +84,12 @@ func TaskComplete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(headers.AccessControlAllowMethods, "PUT")
 	w.Header().Set(headers.AccessControlAllowHeaders, "Content-Type")
 
-	params := mux.Vars(r)
-
-	taskComplete(params["id"])
-
-	json.NewEncoder(w).Encode(params["id"])
+	if r.Method == "PUT" {
+		params := mux.Vars(r)
+		json.NewEncoder(w).Encode(taskComplete(params["id"], r))
+	} else {
+		return
+	}
 }
 
 //UndoTask task complete route
@@ -109,11 +113,15 @@ func DeleteTask(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(headers.AccessControlAllowMethods, "DELETE")
 	w.Header().Set(headers.AccessControlAllowHeaders, "Content-Type")
 
-	params := mux.Vars(r)
+	if r.Method == "DELETE" {
+		params := mux.Vars(r)
 
-	deleteOneTask(params["id"])
+		deleteOneTask(params["id"])
 
-	json.NewEncoder(w).Encode(params["id"])
+		json.NewEncoder(w).Encode(params["id"])
+	} else {
+		return
+	}
 }
 
 //DeleteAllTask task complete route
@@ -168,17 +176,35 @@ func insertOneTask(task models.ToDoList) *mongo.InsertOneResult {
 }
 
 // task complete method, update task's status to true
-func taskComplete(task string) {
-	fmt.Println(task)
+func taskComplete(task string, r *http.Request) models.ToDoList {
+	var initialTask models.ToDoList
+
 	id, _ := primitive.ObjectIDFromHex(task)
 	filter := bson.M{"_id": id}
-	update := bson.M{"$set": bson.M{"status": true}}
-	result, err := collection.UpdateOne(context.Background(), filter, update)
+
+	err := collection.FindOne(context.Background(), filter).Decode(&initialTask)
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("modified count: ", result.ModifiedCount)
+	update := bson.M{"$set": bson.M{"status": !initialTask.Status}}
+
+	_, err = collection.UpdateOne(context.Background(), filter, update)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var updatedTask models.ToDoList
+
+	err = collection.FindOne(context.Background(), filter).Decode(&updatedTask)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return updatedTask
 }
 
 // task undo method, update task's status to false
